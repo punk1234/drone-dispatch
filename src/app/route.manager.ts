@@ -32,12 +32,11 @@ export default class RouteManager {
     );
     app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
-
     const apiRouter = Router();
 
-    apiRouter.use('/drones',      droneRoutes);
+    apiRouter.use('/drones', droneRoutes);
     apiRouter.use('/medications', medicationRoutes);
-    apiRouter.use('/storage',     storageRoutes);
+    apiRouter.use('/storage', storageRoutes);
 
     app.use('/api', apiRouter);
   }
