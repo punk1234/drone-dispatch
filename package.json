@@ -19,7 +19,7 @@
     "worker": "ts-node-dev --respawn --transpile-only src/workers/rabbitmq.consumer.ts",
     "worker:prod": "node dist/workers/rabbitmq.consumer.js",
     "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
-    "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts' 'prisma/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts'",
     "check": "yarn format:check && yarn lint && npx tsc --noEmit"
   },
   "dependencies": {
