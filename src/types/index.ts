@@ -1,4 +1,4 @@
-import { DroneState, Medication, Prisma } from "@prisma/client";
+import { DroneState, Medication, Prisma } from '@prisma/client';
 export { DroneState, DroneModel } from '@prisma/client';
 
 export type DroneWithMedications = Prisma.DroneGetPayload<{

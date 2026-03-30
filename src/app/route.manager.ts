@@ -29,7 +29,6 @@ export default class RouteManager {
     );
     app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
-
     const apiRouter = Router();
 
     app.use('/api', apiRouter);

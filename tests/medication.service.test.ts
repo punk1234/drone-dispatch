@@ -12,19 +12,19 @@ jest.mock('../src/utils/logger', () => ({
 // ── Repository mock ───────────────────────────────────────────────────────
 
 const mockMedRepo = {
-  create:      jest.fn(),
-  findByCode:  jest.fn(),
+  create: jest.fn(),
+  findByCode: jest.fn(),
   findByCodes: jest.fn(),
-  findAll:     jest.fn(),
+  findAll: jest.fn(),
 } as unknown as MedicationRepository;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
 const baseMedication = {
-  code:      'AMX_500',
-  name:      'Amoxicillin_500mg',
-  weight:    50,
-  imageUrl:  null,
+  code: 'AMX_500',
+  name: 'Amoxicillin_500mg',
+  weight: 50,
+  imageUrl: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -103,7 +103,9 @@ describe('MedicationService', () => {
       (mockMedRepo.findByCode as jest.Mock).mockResolvedValue(null);
 
       await expect(service.getMedicationByCode('GHOST_CODE')).rejects.toThrow(AppError);
-      await expect(service.getMedicationByCode('GHOST_CODE')).rejects.toMatchObject({ statusCode: 404 });
+      await expect(service.getMedicationByCode('GHOST_CODE')).rejects.toMatchObject({
+        statusCode: 404,
+      });
     });
   });
 });

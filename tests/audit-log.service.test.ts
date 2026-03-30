@@ -11,7 +11,7 @@ jest.mock('../src/utils/logger', () => ({
 // ── Repository mock ───────────────────────────────────────────────────────
 
 const mockAuditRepo = {
-  createMany:    jest.fn(),
+  createMany: jest.fn(),
   findPaginated: jest.fn(),
 } as unknown as AuditLogRepository;
 
@@ -20,8 +20,22 @@ const mockAuditRepo = {
 const pagination = { page: 1, limit: 20 };
 
 const logs = [
-  { id: 1, droneId: 'drone-uuid-1', serialNumber: 'DRN-TEST-001', batteryCapacity: 80, state: 'IDLE', createdAt: new Date() },
-  { id: 2, droneId: 'drone-uuid-1', serialNumber: 'DRN-TEST-001', batteryCapacity: 79, state: 'IDLE', createdAt: new Date() },
+  {
+    id: 1,
+    droneId: 'drone-uuid-1',
+    serialNumber: 'DRN-TEST-001',
+    batteryCapacity: 80,
+    state: 'IDLE',
+    createdAt: new Date(),
+  },
+  {
+    id: 2,
+    droneId: 'drone-uuid-1',
+    serialNumber: 'DRN-TEST-001',
+    batteryCapacity: 79,
+    state: 'IDLE',
+    createdAt: new Date(),
+  },
 ];
 
 const paginatedLogs = {

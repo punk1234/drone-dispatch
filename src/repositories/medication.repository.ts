@@ -25,7 +25,9 @@ export class MedicationRepository {
     return prisma.medication.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
-  async findAllPaginated(pagination: Required<PaginationInput>): Promise<PaginatedResult<Medication>> {
+  async findAllPaginated(
+    pagination: Required<PaginationInput>
+  ): Promise<PaginatedResult<Medication>> {
     const { page, limit } = pagination;
     const skip = (page - 1) * limit;
 

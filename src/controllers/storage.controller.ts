@@ -16,7 +16,7 @@ export class StorageController {
     const result = await generatePresignedUploadUrl(extension, mimeType);
 
     res.json({
-      message: "Pre-signed upload URL",
+      message: 'Pre-signed upload URL',
       data: {
         uploadUrl: result.uploadUrl, // PUT image bytes here directly from client
         imageUrl: result.imageUrl, // pass this back to POST /api/medications

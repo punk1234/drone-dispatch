@@ -50,14 +50,18 @@ export const UpdateBatterySchema = z.object({
 export const LoadDroneSchema = z.object({
   medicationCodes: z
     .array(
-      z.string()
+      z
+        .string()
         .min(1, 'Medication code cannot be empty')
-        .regex(MedicationCodeRegex, 'Each code must contain only uppercase letters, underscores, and numbers')
+        .regex(
+          MedicationCodeRegex,
+          'Each code must contain only uppercase letters, underscores, and numbers'
+        )
     )
     .min(1, 'Atleast one medication code is required')
-    .refine(
-      (items) => new Set(items).size === items.length,
-      { message: "All items in the array must be unique" }),
+    .refine((items) => new Set(items).size === items.length, {
+      message: 'All items in the array must be unique',
+    }),
 });
 
 // ── Medication schemas ────────────────────────────────────────────────────
@@ -73,7 +77,10 @@ export const CreateMedicationSchema = z.object({
   code: z
     .string()
     .min(1, 'Medication code is required')
-    .regex(MedicationCodeRegex, 'Code can only contain uppercase letters, underscores, and numbers'),
+    .regex(
+      MedicationCodeRegex,
+      'Code can only contain uppercase letters, underscores, and numbers'
+    ),
   // Optional — from pre-signed S3 upload or external CDN
   imageUrl: z.string().url('imageUrl must be a valid URL').optional(),
 });
@@ -82,7 +89,10 @@ export const GetMedicationByCodeSchema = z.object({
   code: z
     .string()
     .min(1, 'Medication code is required')
-    .regex(MedicationCodeRegex, 'Code can only contain uppercase letters, underscores, and numbers'),
+    .regex(
+      MedicationCodeRegex,
+      'Code can only contain uppercase letters, underscores, and numbers'
+    ),
 });
 
 // ── Storage schemas ───────────────────────────────────────────────────────
@@ -108,16 +118,16 @@ export const PresignedUrlQuerySchema = z.object({
 // ── Generic schemas ───────────────────────────────────────────────────────
 
 export const PaginationSchema = z.object({
-  page:  z.coerce.number().int().min(1).optional(),
+  page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 // ── Inferred types ────────────────────────────────────────────────────────
 
-export type RegisterDroneInput   = z.infer<typeof RegisterDroneSchema>;
-export type LoadDroneInput       = z.infer<typeof LoadDroneSchema>;
+export type RegisterDroneInput = z.infer<typeof RegisterDroneSchema>;
+export type LoadDroneInput = z.infer<typeof LoadDroneSchema>;
 export type CreateMedicationInput = z.infer<typeof CreateMedicationSchema>;
 export type UpdateDroneStateInput = z.infer<typeof UpdateDroneStateSchema>;
-export type UpdateBatteryInput   = z.infer<typeof UpdateBatterySchema>;
-export type PresignedUrlInput    = z.infer<typeof PresignedUrlSchema>;
+export type UpdateBatteryInput = z.infer<typeof UpdateBatterySchema>;
+export type PresignedUrlInput = z.infer<typeof PresignedUrlSchema>;
 export type PaginationInput = z.infer<typeof PaginationSchema>;

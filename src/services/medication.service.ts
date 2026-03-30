@@ -14,8 +14,8 @@ export class MedicationService extends BaseService {
   /**
    * @method createMedication
    * @async
-   * @param {CreateMedicationInput} data 
-   * @param {string} imageUrl 
+   * @param {CreateMedicationInput} data
+   * @param {string} imageUrl
    * @returns {Promise<Medication>}
    */
   async createMedication(data: CreateMedicationInput, imageUrl?: string): Promise<Medication> {
@@ -38,14 +38,16 @@ export class MedicationService extends BaseService {
    * @param {Required<PaginationInput>} paginationOpts
    * @returns {Promise<Medication[]>}
    */
-  async getAllMedications(paginationOpts: Required<PaginationInput>): Promise<PaginatedResult<Medication>> {
+  async getAllMedications(
+    paginationOpts: Required<PaginationInput>
+  ): Promise<PaginatedResult<Medication>> {
     return this.medicationRepo.findAllPaginated(paginationOpts);
   }
 
   /**
    * @method getMedicationByCode
    * @async
-   * @param {string} code 
+   * @param {string} code
    * @returns {Promise<Medication>}
    */
   async getMedicationByCode(code: string): Promise<Medication> {
@@ -55,6 +57,4 @@ export class MedicationService extends BaseService {
   }
 }
 
-export const medicationService = new MedicationService(
-  medicationRepository
-);
+export const medicationService = new MedicationService(medicationRepository);

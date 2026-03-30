@@ -3,7 +3,7 @@ export default function () {
   return function <T extends { new (...args: any[]): any }>(target: T): T {
     return class extends target {
       properties = Object.getOwnPropertyNames(target.prototype).filter(
-        (mN: string) => mN !== "constructor",
+        (mN: string) => mN !== 'constructor'
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,7 +11,7 @@ export default function () {
         super(...arg);
 
         this.properties.forEach((member: string) => {
-          if (typeof this[member] === "function") {
+          if (typeof this[member] === 'function') {
             this[member] = this[member].bind(this);
             const originalMethod = this[member];
 
@@ -20,7 +20,7 @@ export default function () {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               value: async function (...props: any[]) {
                 const next = props[2];
-                if (typeof next !== "function") {
+                if (typeof next !== 'function') {
                   return await originalMethod.apply(this, props);
                 }
 

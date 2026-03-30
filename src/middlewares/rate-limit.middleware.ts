@@ -8,7 +8,7 @@ import { ApiResponseHandler } from '../utils/api-response.handler';
 // to effectively disable limiting without removing the middleware.
 
 const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10); // 15 minutes
-const MAX_STRICT = parseInt(process.env.RATE_LIMIT_MAX_STRICT || '20', 10);   // mutating endpoints
+const MAX_STRICT = parseInt(process.env.RATE_LIMIT_MAX_STRICT || '20', 10); // mutating endpoints
 const MAX_GENERAL = parseInt(process.env.RATE_LIMIT_MAX_GENERAL || '100', 10); // read endpoints
 
 // ── Key generator — rate limit by API key, not IP ─────────────────────────
@@ -35,7 +35,7 @@ export const strictLimiter = rateLimit({
   max: MAX_STRICT,
   keyGenerator,
   handler: errorResponse,
-  standardHeaders: true,   // return RateLimit-* headers so clients can back off gracefully
+  standardHeaders: true, // return RateLimit-* headers so clients can back off gracefully
   legacyHeaders: false,
 });
 

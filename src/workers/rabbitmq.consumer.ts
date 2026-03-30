@@ -10,25 +10,33 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
 // without adding a separate container. Extraction to a standalone service is
 // straightforward — move this file to its own entrypoint and run independently.
 const QUEUES = [
-  { name: 'drone.telemetry', bindingKey: 'drone.*'                        }, // all events
-  { name: 'drone.billing',   bindingKey: ROUTING_KEYS.DRONE_STATE_CHANGED }, // state changes only
-  { name: 'drone.audit',     bindingKey: 'drone.*'                        }, // all events
+  { name: 'drone.telemetry', bindingKey: 'drone.*' }, // all events
+  { name: 'drone.billing', bindingKey: ROUTING_KEYS.DRONE_STATE_CHANGED }, // state changes only
+  { name: 'drone.audit', bindingKey: 'drone.*' }, // all events
 ] as const;
 
 function processEvent(queueName: string, event: DroneEvent): void {
   switch (event.eventType) {
     case ROUTING_KEYS.DRONE_REGISTERED:
-      logger.info(`[${queueName}] Drone registered — serial: ${event.serialNumber}, model: ${event.payload.model}`);
+      logger.info(
+        `[${queueName}] Drone registered — serial: ${event.serialNumber}, model: ${event.payload.model}`
+      );
       break;
 
     case ROUTING_KEYS.DRONE_LOADED:
-      logger.info(`[${queueName}] Drone loaded — serial: ${event.serialNumber}, totalWeight: ${event.payload.totalWeight}gr`);
+      logger.info(
+        `[${queueName}] Drone loaded — serial: ${event.serialNumber}, totalWeight: ${event.payload.totalWeight}gr`
+      );
       break;
 
     case ROUTING_KEYS.DRONE_STATE_CHANGED:
-      logger.info(`[${queueName}] State change — serial: ${event.serialNumber}, ${event.payload.previousState} → ${event.payload.newState}`);
+      logger.info(
+        `[${queueName}] State change — serial: ${event.serialNumber}, ${event.payload.previousState} → ${event.payload.newState}`
+      );
       if (event.payload.newState === 'DELIVERED') {
-        logger.info(`[${queueName}] Delivery confirmed for ${event.serialNumber} — post-delivery workflow triggered`);
+        logger.info(
+          `[${queueName}] Delivery confirmed for ${event.serialNumber} — post-delivery workflow triggered`
+        );
       }
       break;
   }

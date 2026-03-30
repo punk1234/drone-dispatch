@@ -63,12 +63,19 @@ export class DroneRepository {
     });
   }
 
-  async findAllPaginated(pagination: Required<PaginationInput>): Promise<PaginatedResult<DroneWithMedications>> {
+  async findAllPaginated(
+    pagination: Required<PaginationInput>
+  ): Promise<PaginatedResult<DroneWithMedications>> {
     const { page, limit } = pagination;
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      prisma.drone.findMany({ ...WITH_MEDICATIONS, orderBy: { createdAt: 'asc' }, skip, take: limit }),
+      prisma.drone.findMany({
+        ...WITH_MEDICATIONS,
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take: limit,
+      }),
       prisma.drone.count(),
     ]);
 
@@ -135,5 +142,5 @@ export class AuditLogRepository {
   }
 }
 
-export const droneRepository    = new DroneRepository();
+export const droneRepository = new DroneRepository();
 export const auditLogRepository = new AuditLogRepository();

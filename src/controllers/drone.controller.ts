@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { droneService } from '../services/drone.service';
-import { RegisterDroneInput, LoadDroneInput, UpdateDroneStateInput, UpdateBatteryInput, PaginationSchema, PaginationInput } from '../validations';
+import {
+  RegisterDroneInput,
+  LoadDroneInput,
+  UpdateDroneStateInput,
+  UpdateBatteryInput,
+  PaginationSchema,
+  PaginationInput,
+} from '../validations';
 import { Controller } from '../decorators';
 import { auditLogService } from '../services/audit-log.service';
 import { ApiResponseHandler } from '../utils/api-response.handler';
@@ -29,7 +36,7 @@ export class DroneController {
     const payload = req.body as LoadDroneInput;
 
     const drone = await droneService.loadDrone(droneId, payload);
-    ApiResponseHandler.ok(res, { message: 'Drone loaded successfully', data: drone })
+    ApiResponseHandler.ok(res, { message: 'Drone loaded successfully', data: drone });
   }
 
   /**
@@ -41,7 +48,7 @@ export class DroneController {
     const droneId = req.params.droneId as string;
     const medications = await droneService.getDroneMedications(droneId);
 
-    ApiResponseHandler.ok(res, { message: 'Medications retrieved', data: medications })
+    ApiResponseHandler.ok(res, { message: 'Medications retrieved', data: medications });
   }
 
   /**
@@ -79,7 +86,7 @@ export class DroneController {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     const dronesInfo = await droneService.getAllDrones({
       page: parseInt(<string>req.query?.page) || 1,
-      limit: parseInt(<string>req.query?.limit) || 20
+      limit: parseInt(<string>req.query?.limit) || 20,
     });
 
     ApiResponseHandler.ok(res, { message: 'Drones retrieved', ...dronesInfo });
@@ -130,10 +137,13 @@ export class DroneController {
   async getAuditLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
     const droneId = req.params.droneId as string;
 
-    const logsInfo = await auditLogService.getAuditLogs({
-      page: parseInt(<string>req.query?.page) || 1,
-      limit: parseInt(<string>req.query?.limit) || 20
-    }, droneId);
+    const logsInfo = await auditLogService.getAuditLogs(
+      {
+        page: parseInt(<string>req.query?.page) || 1,
+        limit: parseInt(<string>req.query?.limit) || 20,
+      },
+      droneId
+    );
 
     ApiResponseHandler.ok(res, { message: 'Audit logs retrieved', ...logsInfo });
   }

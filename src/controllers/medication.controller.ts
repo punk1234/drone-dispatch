@@ -15,7 +15,10 @@ export class MedicationController {
     const data = req.body as CreateMedicationInput;
     const medication = await medicationService.createMedication(data, data.imageUrl);
 
-    ApiResponseHandler.created(res, { data: medication, message: 'Medication created successfully' });
+    ApiResponseHandler.created(res, {
+      data: medication,
+      message: 'Medication created successfully',
+    });
   }
 
   /**
@@ -26,7 +29,7 @@ export class MedicationController {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     const medicationsInfo = await medicationService.getAllMedications({
       page: parseInt(<string>req.query?.page) || 1,
-      limit: parseInt(<string>req.query?.limit) || 20
+      limit: parseInt(<string>req.query?.limit) || 20,
     });
 
     ApiResponseHandler.ok(res, medicationsInfo);

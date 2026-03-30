@@ -13,7 +13,7 @@ export class AuditLogService extends BaseService {
    * @method getAuditLogs
    * @async
    * @param {Required<PaginationInput>} pagination
-   * @param {string} droneId 
+   * @param {string} droneId
    * @returns {Promise<any>}
    */
   async getAuditLogs(
@@ -24,6 +24,4 @@ export class AuditLogService extends BaseService {
   }
 }
 
-export const auditLogService = new AuditLogService(
-  auditLogRepository
-);
+export const auditLogService = new AuditLogService(auditLogRepository);

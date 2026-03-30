@@ -10,11 +10,11 @@ jest.mock('../src/config/database', () => ({ prisma: {} }));
 
 jest.mock('../src/config/redis', () => ({
   CACHE_KEYS: { AVAILABLE_DRONES: 'drones:available' },
-  CACHE_TTL:  30,
+  CACHE_TTL: 30,
 }));
 
 jest.mock('../src/utils/cache.service', () => ({
-  cacheService: {},   // not used directly — tests inject mockCacheService
+  cacheService: {}, // not used directly — tests inject mockCacheService
   CacheService: jest.fn(),
 }));
 
@@ -24,8 +24,8 @@ jest.mock('../src/utils/rabbitmq.publisher', () => ({
 
 jest.mock('../src/config/rabbitmq', () => ({
   ROUTING_KEYS: {
-    DRONE_REGISTERED:    'drone.registered',
-    DRONE_LOADED:        'drone.loaded',
+    DRONE_REGISTERED: 'drone.registered',
+    DRONE_LOADED: 'drone.loaded',
     DRONE_STATE_CHANGED: 'drone.state_changed',
   },
 }));
@@ -34,12 +34,11 @@ jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
 }));
 
-
 // ── Cache mock ────────────────────────────────────────────────────────────────
 
-const mockCacheGet   = jest.fn().mockResolvedValue(null);
-const mockCacheSet   = jest.fn().mockResolvedValue(undefined);
-const mockCacheDel   = jest.fn().mockResolvedValue(undefined);
+const mockCacheGet = jest.fn().mockResolvedValue(null);
+const mockCacheSet = jest.fn().mockResolvedValue(undefined);
+const mockCacheDel = jest.fn().mockResolvedValue(undefined);
 
 const mockCache = {
   get: mockCacheGet,
@@ -50,43 +49,43 @@ const mockCache = {
 // ── Repository mocks ───────────────────────────────────────────────────────
 
 const mockDroneRepo = {
-  create:                          jest.fn(),
-  findById:                        jest.fn(),
-  findByIdLean:                    jest.fn(),
-  findByIdWithOrderedMedications:  jest.fn(),
-  findBattery:                     jest.fn(),
-  findAvailable:                   jest.fn(),
-  findAllPaginated:                jest.fn(),
-  updateState:                     jest.fn(),
-  updateBattery:                   jest.fn(),
-  loadMedications:                 jest.fn(),
-  clearMedications:                jest.fn().mockResolvedValue(undefined),
+  create: jest.fn(),
+  findById: jest.fn(),
+  findByIdLean: jest.fn(),
+  findByIdWithOrderedMedications: jest.fn(),
+  findBattery: jest.fn(),
+  findAvailable: jest.fn(),
+  findAllPaginated: jest.fn(),
+  updateState: jest.fn(),
+  updateBattery: jest.fn(),
+  loadMedications: jest.fn(),
+  clearMedications: jest.fn().mockResolvedValue(undefined),
 } as unknown as DroneRepository;
 
 const mockAuditRepo = {
-  createMany:    jest.fn(),
+  createMany: jest.fn(),
   findPaginated: jest.fn(),
 } as unknown as AuditLogRepository;
 
 const mockMedRepo = {
-  create:        jest.fn(),
-  findByCode:    jest.fn(),
-  findByCodes:   jest.fn(),
-  findAll:       jest.fn(),
+  create: jest.fn(),
+  findByCode: jest.fn(),
+  findByCodes: jest.fn(),
+  findAll: jest.fn(),
 } as unknown as MedicationRepository;
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
 const baseDrone = {
-  id:              'drone-uuid-1',
-  serialNumber:    'DRN-TEST-001',
-  model:           DroneModel.Heavyweight,
-  weightLimit:     500,
+  id: 'drone-uuid-1',
+  serialNumber: 'DRN-TEST-001',
+  model: DroneModel.Heavyweight,
+  weightLimit: 500,
   batteryCapacity: 80,
-  state:           DroneState.IDLE,
-  createdAt:       new Date(),
-  updatedAt:       new Date(),
-  medications:     [] as Array<{
+  state: DroneState.IDLE,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  medications: [] as Array<{
     medicationCode: string;
     loadedAt: Date;
     medication: { weight: number; code: string };
@@ -110,11 +109,11 @@ describe('DroneService', () => {
 
   describe('registerDrone', () => {
     const input = {
-      serialNumber:    'DRN-NEW-001',
-      model:           DroneModel.Heavyweight,
-      weightLimit:     500,
+      serialNumber: 'DRN-NEW-001',
+      model: DroneModel.Heavyweight,
+      weightLimit: 500,
       batteryCapacity: 90,
-      state:           DroneState.IDLE,
+      state: DroneState.IDLE,
     };
 
     it('registers a drone with a single DB call and returns it', async () => {
@@ -140,7 +139,7 @@ describe('DroneService', () => {
       (mockDroneRepo.create as jest.Mock).mockRejectedValue(prismaError);
 
       await expect(service.registerDrone(input)).rejects.toMatchObject({
-        message:    "Drone with serial number 'DRN-NEW-001' already exists",
+        message: "Drone with serial number 'DRN-NEW-001' already exists",
         statusCode: 409,
       });
     });
@@ -157,7 +156,7 @@ describe('DroneService', () => {
   describe('loadDrone', () => {
     const twoMeds = [
       { code: 'MED_A', weight: 100 },
-      { code: 'MED_B', weight: 80  },
+      { code: 'MED_B', weight: 80 },
     ];
 
     const setupLoad = (droneOverrides = {}, medsToReturn = twoMeds) => {
@@ -173,36 +172,51 @@ describe('DroneService', () => {
     it('loads medications and transitions state to LOADING', async () => {
       setupLoad();
 
-      const result = await service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'MED_B'] });
+      const result = await service.loadDrone('drone-uuid-1', {
+        medicationCodes: ['MED_A', 'MED_B'],
+      });
 
       expect(result.state).toBe(DroneState.LOADING);
-      expect(mockDroneRepo.loadMedications).toHaveBeenCalledWith('drone-uuid-1', ['MED_A', 'MED_B']);
+      expect(mockDroneRepo.loadMedications).toHaveBeenCalledWith('drone-uuid-1', [
+        'MED_A',
+        'MED_B',
+      ]);
     });
 
     it('allows loading onto a LOADING state drone', async () => {
       setupLoad({ state: DroneState.LOADING });
-      const result = await service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'MED_B'] });
+      const result = await service.loadDrone('drone-uuid-1', {
+        medicationCodes: ['MED_A', 'MED_B'],
+      });
       expect(result.state).toBe(DroneState.LOADING);
     });
 
     it('throws 404 if drone not found', async () => {
       (mockDroneRepo.findById as jest.Mock).mockResolvedValue(null);
-      await expect(service.loadDrone('x', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 404 });
+      await expect(service.loadDrone('x', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({
+        statusCode: 404,
+      });
     });
 
     it('throws 422 if battery below 25%', async () => {
       setupLoad({ batteryCapacity: 24 });
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 422 });
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+      ).rejects.toMatchObject({ statusCode: 422 });
     });
 
     it('throws 422 if battery is exactly 0%', async () => {
       setupLoad({ batteryCapacity: 0 });
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toThrow('battery');
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+      ).rejects.toThrow('battery');
     });
 
     it('allows loading at exactly 25% battery', async () => {
       setupLoad({ batteryCapacity: 25 });
-      const result = await service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'MED_B'] });
+      const result = await service.loadDrone('drone-uuid-1', {
+        medicationCodes: ['MED_A', 'MED_B'],
+      });
       expect(result.state).toBe(DroneState.LOADING);
     });
 
@@ -210,25 +224,37 @@ describe('DroneService', () => {
       'throws 422 when drone is in %s state',
       async (state) => {
         setupLoad({ state });
-        await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 422 });
+        await expect(
+          service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+        ).rejects.toMatchObject({ statusCode: 422 });
       }
     );
 
     it('throws 422 when weight exceeds limit', async () => {
       setupLoad({ weightLimit: 50 }, [{ code: 'MED_A', weight: 51 }]);
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 422 });
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+      ).rejects.toMatchObject({ statusCode: 422 });
     });
 
     it('throws 422 when cumulative weight (existing + new) exceeds limit', async () => {
       const droneWithLoaded = {
         ...baseDrone,
         weightLimit: 150,
-        medications: [{ medicationCode: 'MED_EXISTING', loadedAt: new Date(), medication: { weight: 100, code: 'MED_EXISTING' } }],
+        medications: [
+          {
+            medicationCode: 'MED_EXISTING',
+            loadedAt: new Date(),
+            medication: { weight: 100, code: 'MED_EXISTING' },
+          },
+        ],
       };
       (mockDroneRepo.findById as jest.Mock).mockResolvedValue(droneWithLoaded);
       (mockMedRepo.findByCodes as jest.Mock).mockResolvedValue([{ code: 'MED_A', weight: 60 }]);
 
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 422 });
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+      ).rejects.toMatchObject({ statusCode: 422 });
     });
 
     it('allows loading at exactly the weight limit', async () => {
@@ -236,31 +262,45 @@ describe('DroneService', () => {
         { code: 'MED_A', weight: 100 },
         { code: 'MED_B', weight: 80 },
       ]);
-      const result = await service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'MED_B'] });
+      const result = await service.loadDrone('drone-uuid-1', {
+        medicationCodes: ['MED_A', 'MED_B'],
+      });
       expect(result.state).toBe(DroneState.LOADING);
     });
 
     it('throws 404 when none of the medication codes exist', async () => {
       (mockDroneRepo.findById as jest.Mock).mockResolvedValue(baseDrone);
       (mockMedRepo.findByCodes as jest.Mock).mockResolvedValue([]);
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['GHOST_A'] })).rejects.toMatchObject({ statusCode: 404 });
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['GHOST_A'] })
+      ).rejects.toMatchObject({ statusCode: 404 });
     });
 
     it('throws 404 when some medication codes are missing', async () => {
       (mockDroneRepo.findById as jest.Mock).mockResolvedValue(baseDrone);
       (mockMedRepo.findByCodes as jest.Mock).mockResolvedValue([{ code: 'MED_A', weight: 50 }]);
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'GHOST_B'] })).rejects.toThrow('GHOST_B');
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A', 'GHOST_B'] })
+      ).rejects.toThrow('GHOST_B');
     });
 
     it('throws 409 if a medication is already loaded on the drone', async () => {
       const droneWithLoaded = {
         ...baseDrone,
-        medications: [{ medicationCode: 'MED_A', loadedAt: new Date(), medication: { weight: 50, code: 'MED_A' } }],
+        medications: [
+          {
+            medicationCode: 'MED_A',
+            loadedAt: new Date(),
+            medication: { weight: 50, code: 'MED_A' },
+          },
+        ],
       };
       (mockDroneRepo.findById as jest.Mock).mockResolvedValue(droneWithLoaded);
       (mockMedRepo.findByCodes as jest.Mock).mockResolvedValue([{ code: 'MED_A', weight: 50 }]);
 
-      await expect(service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })).rejects.toMatchObject({ statusCode: 409 });
+      await expect(
+        service.loadDrone('drone-uuid-1', { medicationCodes: ['MED_A'] })
+      ).rejects.toMatchObject({ statusCode: 409 });
     });
 
     it('invalidates available cache after successful load', async () => {
@@ -277,7 +317,20 @@ describe('DroneService', () => {
       const loadedAt = new Date();
       (mockDroneRepo.findByIdWithOrderedMedications as jest.Mock).mockResolvedValue({
         ...baseDrone,
-        medications: [{ medicationCode: 'AMX_500', loadedAt, medication: { code: 'AMX_500', name: 'Amoxicillin_500mg', weight: 50, imageUrl: null, createdAt: new Date(), updatedAt: new Date() } }],
+        medications: [
+          {
+            medicationCode: 'AMX_500',
+            loadedAt,
+            medication: {
+              code: 'AMX_500',
+              name: 'Amoxicillin_500mg',
+              weight: 50,
+              imageUrl: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        ],
       });
 
       const result = await service.getDroneMedications('drone-uuid-1');
@@ -287,7 +340,10 @@ describe('DroneService', () => {
     });
 
     it('returns empty array for drone with no medications', async () => {
-      (mockDroneRepo.findByIdWithOrderedMedications as jest.Mock).mockResolvedValue({ ...baseDrone, medications: [] });
+      (mockDroneRepo.findByIdWithOrderedMedications as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        medications: [],
+      });
       expect(await service.getDroneMedications('drone-uuid-1')).toEqual([]);
     });
 
@@ -341,7 +397,12 @@ describe('DroneService', () => {
   // ── getDroneBattery ───────────────────────────────────────────────────────
 
   describe('getDroneBattery', () => {
-    const battery = { id: 'drone-uuid-1', serialNumber: 'DRN-TEST-001', batteryCapacity: 75, state: DroneState.IDLE };
+    const battery = {
+      id: 'drone-uuid-1',
+      serialNumber: 'DRN-TEST-001',
+      batteryCapacity: 75,
+      state: DroneState.IDLE,
+    };
 
     it('returns battery info', async () => {
       (mockDroneRepo.findBattery as jest.Mock).mockResolvedValue(battery);
@@ -349,7 +410,10 @@ describe('DroneService', () => {
     });
 
     it('returns 0% without throwing', async () => {
-      (mockDroneRepo.findBattery as jest.Mock).mockResolvedValue({ ...battery, batteryCapacity: 0 });
+      (mockDroneRepo.findBattery as jest.Mock).mockResolvedValue({
+        ...battery,
+        batteryCapacity: 0,
+      });
       expect((await service.getDroneBattery('drone-uuid-1')).batteryCapacity).toBe(0);
     });
 
@@ -363,7 +427,10 @@ describe('DroneService', () => {
 
   describe('getAllDrones', () => {
     it('returns paginated result', async () => {
-      const paginated = { data: [baseDrone, { ...baseDrone, id: 'drone-uuid-2' }], meta: { total: 2, page: 1, limit: 20, totalPages: 1 } };
+      const paginated = {
+        data: [baseDrone, { ...baseDrone, id: 'drone-uuid-2' }],
+        meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+      };
       (mockDroneRepo.findAllPaginated as jest.Mock).mockResolvedValue(paginated);
       const result = await service.getAllDrones(pagination);
       expect(result.data).toHaveLength(2);
@@ -371,7 +438,10 @@ describe('DroneService', () => {
     });
 
     it('returns empty data when fleet is empty', async () => {
-      (mockDroneRepo.findAllPaginated as jest.Mock).mockResolvedValue({ data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } });
+      (mockDroneRepo.findAllPaginated as jest.Mock).mockResolvedValue({
+        data: [],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+      });
       const result = await service.getAllDrones(pagination);
       expect(result.data).toEqual([]);
     });
@@ -396,7 +466,10 @@ describe('DroneService', () => {
   describe('updateDroneState', () => {
     it('updates state and invalidates cache', async () => {
       (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue(baseDrone); // IDLE
-      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.LOADING });
+      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.LOADING,
+      });
 
       const result = await service.updateDroneState('drone-uuid-1', DroneState.LOADING);
 
@@ -407,21 +480,23 @@ describe('DroneService', () => {
 
     it('throws 404 if drone not found', async () => {
       (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue(null);
-      await expect(service.updateDroneState('x', DroneState.LOADING)).rejects.toMatchObject({ statusCode: 404 });
+      await expect(service.updateDroneState('x', DroneState.LOADING)).rejects.toMatchObject({
+        statusCode: 404,
+      });
     });
 
     // ── Valid transitions ────────────────────────────────────────────────────
 
     it.each([
-      [DroneState.IDLE,       DroneState.LOADING],
-      [DroneState.LOADING,    DroneState.IDLE],
-      [DroneState.LOADING,    DroneState.LOADED],
-      [DroneState.LOADED,     DroneState.LOADING],
-      [DroneState.LOADED,     DroneState.DELIVERING],
-      [DroneState.LOADED,     DroneState.IDLE],
+      [DroneState.IDLE, DroneState.LOADING],
+      [DroneState.LOADING, DroneState.IDLE],
+      [DroneState.LOADING, DroneState.LOADED],
+      [DroneState.LOADED, DroneState.LOADING],
+      [DroneState.LOADED, DroneState.DELIVERING],
+      [DroneState.LOADED, DroneState.IDLE],
       [DroneState.DELIVERING, DroneState.DELIVERED],
-      [DroneState.DELIVERED,  DroneState.RETURNING],
-      [DroneState.RETURNING,  DroneState.IDLE],
+      [DroneState.DELIVERED, DroneState.RETURNING],
+      [DroneState.RETURNING, DroneState.IDLE],
     ])('allows valid transition %s → %s', async (from, to) => {
       (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({ ...baseDrone, state: from });
       (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({ ...baseDrone, state: to });
@@ -432,27 +507,27 @@ describe('DroneService', () => {
     // ── Invalid transitions ──────────────────────────────────────────────────
 
     it.each([
-      [DroneState.IDLE,       DroneState.LOADED],
-      [DroneState.IDLE,       DroneState.DELIVERING],
-      [DroneState.IDLE,       DroneState.DELIVERED],
-      [DroneState.IDLE,       DroneState.RETURNING],
-      [DroneState.LOADING,    DroneState.DELIVERING],
-      [DroneState.LOADING,    DroneState.DELIVERED],
-      [DroneState.LOADING,    DroneState.RETURNING],
-      [DroneState.LOADED,     DroneState.DELIVERED],
-      [DroneState.LOADED,     DroneState.RETURNING],
+      [DroneState.IDLE, DroneState.LOADED],
+      [DroneState.IDLE, DroneState.DELIVERING],
+      [DroneState.IDLE, DroneState.DELIVERED],
+      [DroneState.IDLE, DroneState.RETURNING],
+      [DroneState.LOADING, DroneState.DELIVERING],
+      [DroneState.LOADING, DroneState.DELIVERED],
+      [DroneState.LOADING, DroneState.RETURNING],
+      [DroneState.LOADED, DroneState.DELIVERED],
+      [DroneState.LOADED, DroneState.RETURNING],
       [DroneState.DELIVERING, DroneState.IDLE],
       [DroneState.DELIVERING, DroneState.LOADING],
       [DroneState.DELIVERING, DroneState.LOADED],
       [DroneState.DELIVERING, DroneState.RETURNING],
-      [DroneState.DELIVERED,  DroneState.IDLE],
-      [DroneState.DELIVERED,  DroneState.LOADING],
-      [DroneState.DELIVERED,  DroneState.LOADED],
-      [DroneState.DELIVERED,  DroneState.DELIVERING],
-      [DroneState.RETURNING,  DroneState.LOADING],
-      [DroneState.RETURNING,  DroneState.LOADED],
-      [DroneState.RETURNING,  DroneState.DELIVERING],
-      [DroneState.RETURNING,  DroneState.DELIVERED],
+      [DroneState.DELIVERED, DroneState.IDLE],
+      [DroneState.DELIVERED, DroneState.LOADING],
+      [DroneState.DELIVERED, DroneState.LOADED],
+      [DroneState.DELIVERED, DroneState.DELIVERING],
+      [DroneState.RETURNING, DroneState.LOADING],
+      [DroneState.RETURNING, DroneState.LOADED],
+      [DroneState.RETURNING, DroneState.DELIVERING],
+      [DroneState.RETURNING, DroneState.DELIVERED],
     ])('rejects invalid transition %s → %s with 422', async (from, to) => {
       (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({ ...baseDrone, state: from });
 
@@ -465,8 +540,14 @@ describe('DroneService', () => {
     // ── Medication clearing ──────────────────────────────────────────────────
 
     it('clears medications when transitioning to DELIVERED', async () => {
-      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.DELIVERING });
-      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.DELIVERED });
+      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.DELIVERING,
+      });
+      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.DELIVERED,
+      });
       (mockDroneRepo.clearMedications as jest.Mock) = jest.fn().mockResolvedValue(undefined);
 
       await service.updateDroneState('drone-uuid-1', DroneState.DELIVERED);
@@ -475,8 +556,14 @@ describe('DroneService', () => {
     });
 
     it('clears medications when transitioning to IDLE', async () => {
-      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.LOADED });
-      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.IDLE });
+      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.LOADED,
+      });
+      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.IDLE,
+      });
       (mockDroneRepo.clearMedications as jest.Mock) = jest.fn().mockResolvedValue(undefined);
 
       await service.updateDroneState('drone-uuid-1', DroneState.IDLE);
@@ -485,8 +572,14 @@ describe('DroneService', () => {
     });
 
     it('does not clear medications for non-clearing transitions', async () => {
-      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.IDLE });
-      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({ ...baseDrone, state: DroneState.LOADING });
+      (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.IDLE,
+      });
+      (mockDroneRepo.updateState as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        state: DroneState.LOADING,
+      });
       (mockDroneRepo.clearMedications as jest.Mock) = jest.fn();
 
       await service.updateDroneState('drone-uuid-1', DroneState.LOADING);
@@ -500,7 +593,10 @@ describe('DroneService', () => {
   describe('updateBattery', () => {
     it('updates battery and invalidates cache', async () => {
       (mockDroneRepo.findByIdLean as jest.Mock).mockResolvedValue(baseDrone);
-      (mockDroneRepo.updateBattery as jest.Mock).mockResolvedValue({ ...baseDrone, batteryCapacity: 50 });
+      (mockDroneRepo.updateBattery as jest.Mock).mockResolvedValue({
+        ...baseDrone,
+        batteryCapacity: 50,
+      });
 
       const result = await service.updateBattery('drone-uuid-1', 50);
 

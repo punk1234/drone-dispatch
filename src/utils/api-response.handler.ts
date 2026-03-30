@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Response } from 'express';
 
 /**
  * @enum HttpStatusCode
@@ -29,12 +29,7 @@ export class ApiResponseHandler {
    * @param {string} [message] Optional response message
    * @memberOf ApiResponseHandler
    */
-  static send(
-    res: Response,
-    statusCode: HttpStatusCode,
-    data?: object,
-    message?: string,
-  ) {
+  static send(res: Response, statusCode: HttpStatusCode, data?: object, message?: string) {
     return res.status(statusCode).json(data || { message });
   }
 

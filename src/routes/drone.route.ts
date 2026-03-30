@@ -3,7 +3,13 @@ import { droneController } from '../controllers/drone.controller';
 import { validate } from '../middlewares/validate.middleware';
 import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
 import { strictLimiter, generalLimiter } from '../middlewares/rate-limit.middleware';
-import { RegisterDroneSchema, LoadDroneSchema, UpdateDroneStateSchema, UpdateBatterySchema, PaginationSchema } from '../validations';
+import {
+  RegisterDroneSchema,
+  LoadDroneSchema,
+  UpdateDroneStateSchema,
+  UpdateBatterySchema,
+  PaginationSchema,
+} from '../validations';
 
 const router = Router();
 
@@ -14,12 +20,22 @@ router.use(authenticate);
 
 router.get('/', generalLimiter, validate(PaginationSchema, 'query'), droneController.getAll);
 router.get('/available', generalLimiter, droneController.getAvailable);
-router.get('/audit-logs', generalLimiter, validate(PaginationSchema, 'query'), droneController.getAuditLogs);
+router.get(
+  '/audit-logs',
+  generalLimiter,
+  validate(PaginationSchema, 'query'),
+  droneController.getAuditLogs
+);
 
 router.get('/:droneId', generalLimiter, droneController.getById);
 router.get('/:droneId/medications', generalLimiter, droneController.getMedications);
 router.get('/:droneId/battery', generalLimiter, droneController.getBatteryLevel);
-router.get('/:droneId/audit-logs', generalLimiter, validate(PaginationSchema, 'query'), droneController.getAuditLogs);
+router.get(
+  '/:droneId/audit-logs',
+  generalLimiter,
+  validate(PaginationSchema, 'query'),
+  droneController.getAuditLogs
+);
 
 // ── Mutating endpoints (admin only) ──────────────────────────────────────
 

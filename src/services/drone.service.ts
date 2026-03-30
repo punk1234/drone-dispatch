@@ -1,6 +1,13 @@
 import { CACHE_KEYS, CACHE_TTL } from '../config/redis';
 import { RegisterDroneInput, LoadDroneInput, PaginationInput } from '../validations';
-import { DroneBattery, DroneBatteryUpdate, DroneState, LoadCheckResult, LoadedMedication, PaginatedResult } from '../types';
+import {
+  DroneBattery,
+  DroneBatteryUpdate,
+  DroneState,
+  LoadCheckResult,
+  LoadedMedication,
+  PaginatedResult,
+} from '../types';
 import { logger } from '../utils/logger';
 import { AppError } from '../middlewares/error.middleware';
 import { publishDroneEvent } from '../utils/rabbitmq.publisher';
@@ -28,12 +35,12 @@ import { MedicationRepository, medicationRepository } from '../repositories/medi
 //   RETURNING → IDLE       (back at base, ready for next load)
 
 const VALID_TRANSITIONS: Readonly<Record<DroneState, DroneState[]>> = {
-  [DroneState.IDLE]:       [DroneState.LOADING],
-  [DroneState.LOADING]:    [DroneState.IDLE, DroneState.LOADED],
-  [DroneState.LOADED]:     [DroneState.LOADING, DroneState.DELIVERING, DroneState.IDLE],
+  [DroneState.IDLE]: [DroneState.LOADING],
+  [DroneState.LOADING]: [DroneState.IDLE, DroneState.LOADED],
+  [DroneState.LOADED]: [DroneState.LOADING, DroneState.DELIVERING, DroneState.IDLE],
   [DroneState.DELIVERING]: [DroneState.DELIVERED],
-  [DroneState.DELIVERED]:  [DroneState.RETURNING],
-  [DroneState.RETURNING]:  [DroneState.IDLE],
+  [DroneState.DELIVERED]: [DroneState.RETURNING],
+  [DroneState.RETURNING]: [DroneState.IDLE],
 };
 
 function assertValidTransition(from: DroneState, to: DroneState): void {
@@ -52,7 +59,7 @@ export class DroneService extends BaseService {
   constructor(
     private readonly droneRepo: DroneRepository,
     private readonly medicationRepo: MedicationRepository,
-    private readonly cache: CacheService,
+    private readonly cache: CacheService
   ) {
     super();
   }
@@ -60,7 +67,7 @@ export class DroneService extends BaseService {
   /**
    * @method registerDrone
    * @async
-   * @param {RegisterDroneInput} data 
+   * @param {RegisterDroneInput} data
    * @returns {Promise<Drone>}
    */
   async registerDrone(data: RegisterDroneInput): Promise<Drone> {
@@ -91,48 +98,70 @@ export class DroneService extends BaseService {
   /**
    * @method loadDrone
    * @async
-   * @param {string} droneId 
-   * @param {LoadDroneInput} payload 
+   * @param {string} droneId
+   * @param {LoadDroneInput} payload
    * @returns {Promise<DroneWithMedications>}
    */
   async loadDrone(droneId: string, payload: LoadDroneInput): Promise<DroneWithMedications> {
     const droneWithMedications = await this.droneRepo.findById(droneId);
     if (!droneWithMedications) throw new AppError('Drone not found', 404);
 
-    const { medications, totalWeight } =  await this.checkThatDroneCanBeLoaded(droneWithMedications, payload);
+    const { medications, totalWeight } = await this.checkThatDroneCanBeLoaded(
+      droneWithMedications,
+      payload
+    );
     const result = await this.droneRepo.loadMedications(droneId, payload.medicationCodes);
 
     await this.invalidateAvailableCache();
 
-    await publishDroneEvent(ROUTING_KEYS.DRONE_LOADED, droneWithMedications.id, droneWithMedications.serialNumber, {
-      medicationCodes: payload.medicationCodes,
-      totalWeight,
-      batteryCapacity: droneWithMedications.batteryCapacity,
-    });
+    await publishDroneEvent(
+      ROUTING_KEYS.DRONE_LOADED,
+      droneWithMedications.id,
+      droneWithMedications.serialNumber,
+      {
+        medicationCodes: payload.medicationCodes,
+        totalWeight,
+        batteryCapacity: droneWithMedications.batteryCapacity,
+      }
+    );
 
-    logger.info(`Drone ${droneWithMedications.serialNumber} loaded with ${medications.length} medication(s)`);
+    logger.info(
+      `Drone ${droneWithMedications.serialNumber} loaded with ${medications.length} medication(s)`
+    );
     return result;
   }
 
   /**
    * @method getDroneMedications
    * @async
-   * @param {string} droneId 
+   * @param {string} droneId
    * @returns {Promise<LoadedMedication[]>}
    */
   async getDroneMedications(droneId: string): Promise<LoadedMedication[]> {
-    const drone = await this.droneRepo.findByIdWithOrderedMedications(droneId)
+    const drone = await this.droneRepo.findByIdWithOrderedMedications(droneId);
     if (!drone) throw new AppError('Drone not found', 404);
 
-    return drone.medications.map((dm: { medication: { code: string; name: string; weight: number; imageUrl: string | null; createdAt: Date; updatedAt: Date }; loadedAt: Date }) => ({
-      code:      dm.medication.code,
-      name:      dm.medication.name,
-      weight:    dm.medication.weight,
-      imageUrl:  dm.medication.imageUrl,
-      createdAt: dm.medication.createdAt,
-      updatedAt: dm.medication.updatedAt,
-      loadedAt:  dm.loadedAt,
-    }));
+    return drone.medications.map(
+      (dm: {
+        medication: {
+          code: string;
+          name: string;
+          weight: number;
+          imageUrl: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+        };
+        loadedAt: Date;
+      }) => ({
+        code: dm.medication.code,
+        name: dm.medication.name,
+        weight: dm.medication.weight,
+        imageUrl: dm.medication.imageUrl,
+        createdAt: dm.medication.createdAt,
+        updatedAt: dm.medication.updatedAt,
+        loadedAt: dm.loadedAt,
+      })
+    );
   }
 
   /**
@@ -168,14 +197,16 @@ export class DroneService extends BaseService {
    * @param {Required<PaginationInput>} pagination
    * @returns {Promise<PaginatedResult<DroneWithMedications>>}
    */
-  async getAllDrones(pagination: Required<PaginationInput>): Promise<PaginatedResult<DroneWithMedications>> {
+  async getAllDrones(
+    pagination: Required<PaginationInput>
+  ): Promise<PaginatedResult<DroneWithMedications>> {
     return this.droneRepo.findAllPaginated(pagination);
   }
 
   /**
    * @method getDroneById
    * @async
-   * @param {string} droneId 
+   * @param {string} droneId
    * @returns {Promise<Drone>}
    */
   async getDroneById(droneId: string): Promise<Drone> {
@@ -188,8 +219,8 @@ export class DroneService extends BaseService {
   /**
    * @method updateDroneState
    * @async
-   * @param {string} droneId 
-   * @param {DroneState} state 
+   * @param {string} droneId
+   * @param {DroneState} state
    * @returns {Promise<Drone>}
    */
   async updateDroneState(droneId: string, state: DroneState): Promise<Drone> {
@@ -201,8 +232,7 @@ export class DroneService extends BaseService {
     // Clear loaded medications on terminal/reset states:
     // DELIVERED — payload has been handed off at destination
     // IDLE      — load was cancelled or drone has returned and is being reset
-    const shouldClearMedications =
-      state === DroneState.DELIVERED || state === DroneState.IDLE;
+    const shouldClearMedications = state === DroneState.DELIVERED || state === DroneState.IDLE;
 
     if (shouldClearMedications) {
       await this.droneRepo.clearMedications(droneId);
@@ -213,8 +243,8 @@ export class DroneService extends BaseService {
     await this.invalidateAvailableCache();
 
     await publishDroneEvent(ROUTING_KEYS.DRONE_STATE_CHANGED, drone.id, drone.serialNumber, {
-      previousState:      drone.state,
-      newState:           state,
+      previousState: drone.state,
+      newState: state,
       medicationsCleared: shouldClearMedications,
     });
 
@@ -224,8 +254,8 @@ export class DroneService extends BaseService {
   /**
    * @method updateBattery
    * @async
-   * @param {string} droneId 
-   * @param {number} batteryCapacity 
+   * @param {string} droneId
+   * @param {number} batteryCapacity
    * @returns {Promise<DroneBatteryUpdate>}
    */
   async updateBattery(droneId: string, batteryCapacity: number): Promise<DroneBatteryUpdate> {
@@ -244,13 +274,19 @@ export class DroneService extends BaseService {
   /**
    * @method checkThatDroneCanBeLoaded
    * @async
-   * @param {DroneWithMedications} drone 
-   * @param {LoadDroneInput} payload 
+   * @param {DroneWithMedications} drone
+   * @param {LoadDroneInput} payload
    * @returns {Promise<LoadCheckResult>}
    */
-  private async checkThatDroneCanBeLoaded(drone: DroneWithMedications, payload: LoadDroneInput): Promise<LoadCheckResult> {
+  private async checkThatDroneCanBeLoaded(
+    drone: DroneWithMedications,
+    payload: LoadDroneInput
+  ): Promise<LoadCheckResult> {
     if (drone.batteryCapacity < MIN_BATTERY_FOR_LOADING) {
-      throw new AppError(`Drone battery is at ${drone.batteryCapacity}% — cannot load below ${MIN_BATTERY_FOR_LOADING}%`, 422);
+      throw new AppError(
+        `Drone battery is at ${drone.batteryCapacity}% — cannot load below ${MIN_BATTERY_FOR_LOADING}%`,
+        422
+      );
     }
 
     if (drone.state !== DroneState.IDLE && drone.state !== DroneState.LOADING) {
@@ -265,7 +301,9 @@ export class DroneService extends BaseService {
       throw new AppError(`Medications not found: ${missing.join(', ')}`, 404);
     }
 
-    const alreadyLoaded = drone.medications.map((dm: { medicationCode: string }) => dm.medicationCode);
+    const alreadyLoaded = drone.medications.map(
+      (dm: { medicationCode: string }) => dm.medicationCode
+    );
     const duplicates = payload.medicationCodes.filter((code) => alreadyLoaded.includes(code));
     if (duplicates.length > 0) {
       throw new AppError(
@@ -282,12 +320,15 @@ export class DroneService extends BaseService {
     const totalWeight = currentWeight + newWeight;
 
     if (totalWeight > drone.weightLimit) {
-      throw new AppError(`Total weight (${totalWeight}gr) exceeds drone weight limit (${drone.weightLimit}gr)`, 422);
+      throw new AppError(
+        `Total weight (${totalWeight}gr) exceeds drone weight limit (${drone.weightLimit}gr)`,
+        422
+      );
     }
 
     return {
       medications,
-      totalWeight
+      totalWeight,
     };
   }
 
@@ -296,8 +337,4 @@ export class DroneService extends BaseService {
   }
 }
 
-export const droneService = new DroneService(
-  droneRepository,
-  medicationRepository,
-  cacheService
-);
+export const droneService = new DroneService(droneRepository, medicationRepository, cacheService);

@@ -64,11 +64,7 @@ export default class App extends AbstractApp {
    */
   async close(closeDataStores: boolean = true): Promise<void> {
     if (closeDataStores) {
-      await Promise.all([
-        disconnectDatabase(),
-        disconnectRedis(),
-        disconnectRabbit(),
-      ]);
+      await Promise.all([disconnectDatabase(), disconnectRedis(), disconnectRabbit()]);
       logger.info('All connections closed');
     }
 

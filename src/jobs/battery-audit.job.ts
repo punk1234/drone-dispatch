@@ -24,18 +24,20 @@ export function startBatteryAuditJob(): void {
 
       if (drones.length === 0) return;
 
-      await auditLogRepository.createMany(drones.map(
-        (drone: {
-          id: string;
-          serialNumber: string;
-          batteryCapacity: number;
-          state: string;
-        }) => ({
-          droneId: drone.id,
-          serialNumber: drone.serialNumber,
-          batteryCapacity: drone.batteryCapacity,
-          state: <DroneState>drone.state,
-        })),
+      await auditLogRepository.createMany(
+        drones.map(
+          (drone: {
+            id: string;
+            serialNumber: string;
+            batteryCapacity: number;
+            state: string;
+          }) => ({
+            droneId: drone.id,
+            serialNumber: drone.serialNumber,
+            batteryCapacity: drone.batteryCapacity,
+            state: <DroneState>drone.state,
+          })
+        )
       );
 
       logger.info(`[Battery Audit] Logged battery levels for ${drones.length} drone(s)`);
