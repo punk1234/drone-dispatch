@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+logs/
+uploads/*
+!uploads/.gitkeep
+coverage/
+*.js.map
+prisma/migrations/

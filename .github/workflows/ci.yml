@@ -1,0 +1,39 @@
+name: CI workflow
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check formatting (Prettier)
+        run: npm run format:check
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      # - name: Type check (TypeScript)
+      #   run: yarn tsc --noEmit
+
+      - name: Generate DB (prisma) clients for tests
+        run: npm run db:generate
+
+      - name: Run Tests
+        run: npm test

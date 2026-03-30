@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DroneModel {
+  Lightweight
+  Middleweight
+  Cruiserweight
+  Heavyweight
+}
+
+enum DroneState {
+  IDLE
+  LOADING
+  LOADED
+  DELIVERING
+  DELIVERED
+  RETURNING
+}
+
+model Drone {
+  id              String            @id @default(uuid())
+  serialNumber    String            @unique @db.VarChar(100)
+  model           DroneModel
+  weightLimit     Float
+  batteryCapacity Int
+  state           DroneState        @default(IDLE)
+  medications     DroneMedication[]
+  auditLogs       BatteryAuditLog[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("drones")
+}
+
+model Medication {
+  // code is the natural unique identifier (e.g. AMX_500) — used as primary key
+  // to avoid a redundant UUID column given code uniqueness is already enforced by domain rules
+  code      String            @id
+  name      String
+  weight    Float
+  imageUrl  String?
+  drones    DroneMedication[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@map("medications")
+}
+
+model DroneMedication {
+  id             Int        @id @default(autoincrement())
+  droneId        String
+  medicationCode String
+  drone          Drone      @relation(fields: [droneId], references: [id], onDelete: Cascade)
+  medication     Medication @relation(fields: [medicationCode], references: [code], onDelete: Cascade)
+  loadedAt       DateTime   @default(now())
+
+  @@unique([droneId, medicationCode])
+  @@map("drone_medications")
+}
+
+model BatteryAuditLog {
+  id              Int        @id @default(autoincrement())
+  droneId         String
+  serialNumber    String
+  batteryCapacity Int
+  state           DroneState
+  drone           Drone      @relation(fields: [droneId], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+
+  @@map("battery_audit_logs")
+}
