@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' --max-warnings 0",
-    "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'prisma/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
     "test": "jest --forceExit --detectOpenHandles",
     "test:coverage": "jest --coverage --forceExit --detectOpenHandles",
     "db:generate": "prisma generate",

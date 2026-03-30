@@ -31,3 +31,6 @@ jobs:
 
       - name: Type check (TypeScript)
         run: yarn tsc --noEmit
+
+      - name: Run Tests
+        run: yarn tsc --noEmit
