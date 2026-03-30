@@ -100,6 +100,7 @@ describe('DroneService', () => {
   let service: DroneService;
 
   beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     service = new DroneService(mockDroneRepo, mockMedRepo, mockCache as any);
     jest.clearAllMocks();
     mockCacheGet.mockResolvedValue(null);
