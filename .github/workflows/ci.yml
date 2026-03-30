@@ -32,5 +32,8 @@ jobs:
       # - name: Type check (TypeScript)
       #   run: yarn tsc --noEmit
 
+      - name: Generate DB (prisma) clients for tests
+        run: npm run db:generate
+
       - name: Run Tests
-        run: yarn tsc --noEmit
+        run: npm test
