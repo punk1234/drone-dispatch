@@ -1,0 +1,989 @@
+openapi: 3.0.3
+
+info:
+  title: Drone Dispatch API
+  version: 1.0.0
+  description: |
+    REST API for managing a fleet of 10 autonomous drones delivering medications.
+
+    ## Authentication
+    All endpoints require an `X-Api-Key` header.
+
+    | Key | Role | Access |
+    |-----|------|--------|
+    | `dd-admin-k9x2mP7qL4nW8vT3` | Admin | Full access |
+    | `dd-readonly-rJ5yH6bN1cQ2sA9` | Readonly | GET endpoints only |
+
+    Missing or unrecognised keys return `401`. A valid readonly key on a mutating endpoint returns `403`.
+
+    ## State Machine
+    Drone state transitions are strictly enforced. Only these transitions are permitted:
+
+    ```
+    IDLE → LOADING
+    LOADING → IDLE         (load cancelled — medications cleared)
+    LOADING → LOADED       (loading complete)
+    LOADED → LOADING       (adding more items)
+    LOADED → DELIVERING    (drone dispatched)
+    LOADED → IDLE          (load abandoned — medications cleared)
+    DELIVERING → DELIVERED (arrived — medications cleared)
+    DELIVERED → RETURNING  (heading back)
+    RETURNING → IDLE       (back at base)
+    ```
+
+    ## Rate Limiting
+    Applied per API key. Headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`.
+
+    | Limiter | Limit | Applied to |
+    |---------|-------|------------|
+    | Strict | 20 req / 15 min | POST, PATCH, PUT |
+    | General | 100 req / 15 min | GET |
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Drones
+    description: Drone fleet management
+  - name: Medications
+    description: Medication catalogue
+  - name: Storage
+    description: Pre-signed S3 upload URLs
+  - name: Health
+    description: Service health
+
+components:
+  securitySchemes:
+    ApiKeyAdmin:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    ApiKeyReadonly:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+
+  parameters:
+    droneId:
+      in: path
+      name: droneId
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+    page:
+      in: query
+      name: page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limit:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    Drone:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+          maxLength: 100
+          example: DRN-ALPHA-001
+        model:
+          type: string
+          enum: [Lightweight, Middleweight, Cruiserweight, Heavyweight]
+        weightLimit:
+          type: number
+          example: 500
+          description: Maximum payload in grams
+        batteryCapacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 95
+        state:
+          type: string
+          enum: [IDLE, LOADING, LOADED, DELIVERING, DELIVERED, RETURNING]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Medication:
+      type: object
+      properties:
+        code:
+          type: string
+          pattern: '^[A-Z0-9_]+$'
+          example: AMX_500
+          description: Primary identifier
+        name:
+          type: string
+          example: Amoxicillin_500mg
+        weight:
+          type: number
+          example: 50
+          description: Weight in grams
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LoadedMedication:
+      allOf:
+        - $ref: '#/components/schemas/Medication'
+        - type: object
+          properties:
+            loadedAt:
+              type: string
+              format: date-time
+
+    DroneWithMedications:
+      allOf:
+        - $ref: '#/components/schemas/Drone'
+        - type: object
+          properties:
+            medications:
+              type: array
+              items:
+                $ref: '#/components/schemas/LoadedMedication'
+
+    DroneStateUpdate:
+      type: object
+      description: Narrow response for state mutations
+      properties:
+        id:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+        state:
+          type: string
+          enum: [IDLE, LOADING, LOADED, DELIVERING, DELIVERED, RETURNING]
+
+    DroneBatteryUpdate:
+      type: object
+      description: Narrow response for battery mutations
+      properties:
+        id:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+        batteryCapacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    BatteryAuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+          description: Auto-incremented integer
+        droneId:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+          example: DRN-ALPHA-001
+        batteryCapacity:
+          type: integer
+          example: 95
+        state:
+          type: string
+          enum: [IDLE, LOADING, LOADED, DELIVERING, DELIVERED, RETURNING]
+        createdAt:
+          type: string
+          format: date-time
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Validation failed
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Missing API key — provide X-Api-Key header
+    Forbidden:
+      description: Insufficient privileges
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: This action requires admin privileges
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Drone not found
+    UnprocessableEntity:
+      description: Business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Invalid state transition: IDLE → DELIVERED. Allowed from IDLE: LOADING"
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Too many requests — please try again later
+
+paths:
+
+  /health:
+    get:
+      summary: Health check
+      tags: [Health]
+      description: Unauthenticated.
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              example:
+                ok: true
+
+  /api/drones:
+    post:
+      summary: Register a drone
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serialNumber, model, weightLimit, batteryCapacity]
+              properties:
+                serialNumber:
+                  type: string
+                  maxLength: 100
+                  example: DRN-ALPHA-001
+                  description: Whitespace is trimmed automatically
+                model:
+                  type: string
+                  enum: [Lightweight, Middleweight, Cruiserweight, Heavyweight]
+                weightLimit:
+                  type: number
+                  minimum: 0
+                  maximum: 500
+                  example: 500
+                batteryCapacity:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  example: 95
+                state:
+                  type: string
+                  enum: [IDLE, LOADING, LOADED, DELIVERING, DELIVERED, RETURNING]
+                  default: IDLE
+      responses:
+        '201':
+          description: Drone registered
+          content:
+            application/json:
+              example:
+                message: Drone registered successfully
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  model: Heavyweight
+                  weightLimit: 500
+                  batteryCapacity: 95
+                  state: IDLE
+                  createdAt: '2026-03-30T12:00:00.000Z'
+                  updatedAt: '2026-03-30T12:00:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Serial number already registered
+          content:
+            application/json:
+              example:
+                message: "Drone with serial number 'DRN-ALPHA-001' already exists"
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+    get:
+      summary: List all drones (paginated)
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated drone list with loaded medications
+          content:
+            application/json:
+              example:
+                message: Drones retrieved
+                data:
+                  - id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                    serialNumber: DRN-ALPHA-001
+                    model: Heavyweight
+                    weightLimit: 500
+                    batteryCapacity: 95
+                    state: IDLE
+                    medications: []
+                    createdAt: '2026-03-30T12:00:00.000Z'
+                    updatedAt: '2026-03-30T12:00:00.000Z'
+                meta:
+                  total: 10
+                  page: 1
+                  limit: 20
+                  totalPages: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/available:
+    get:
+      summary: List drones available for loading
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      description: |
+        Returns drones in `IDLE` or `LOADING` state with battery ≥ 25%.
+        Cached in Redis for 30 seconds (configurable via `CACHE_TTL`).
+      responses:
+        '200':
+          description: Available drones
+          content:
+            application/json:
+              example:
+                message: Available drones retrieved
+                data:
+                  - id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                    serialNumber: DRN-ALPHA-001
+                    model: Heavyweight
+                    batteryCapacity: 95
+                    state: IDLE
+                count: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/audit-logs:
+    get:
+      summary: Battery audit logs — all drones (paginated)
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      description: Battery levels recorded every minute via background cron.
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated audit logs
+          content:
+            application/json:
+              example:
+                message: Audit logs retrieved
+                data:
+                  - id: 1
+                    droneId: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                    serialNumber: DRN-ALPHA-001
+                    batteryCapacity: 95
+                    state: IDLE
+                    createdAt: '2026-03-30T12:00:00.000Z'
+                meta:
+                  total: 1440
+                  page: 1
+                  limit: 20
+                  totalPages: 72
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}:
+    get:
+      summary: Get a drone by ID
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      responses:
+        '200':
+          description: Drone with loaded medications
+          content:
+            application/json:
+              example:
+                message: Drone retrieved
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  model: Heavyweight
+                  weightLimit: 500
+                  batteryCapacity: 95
+                  state: LOADING
+                  medications:
+                    - code: AMX_500
+                      name: Amoxicillin_500mg
+                      weight: 50
+                      imageUrl: null
+                      loadedAt: '2026-03-30T12:05:00.000Z'
+                  createdAt: '2026-03-30T12:00:00.000Z'
+                  updatedAt: '2026-03-30T12:05:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}/medications:
+    get:
+      summary: Get medications loaded on a drone
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      responses:
+        '200':
+          description: Loaded medications ordered by loadedAt descending
+          content:
+            application/json:
+              example:
+                message: Medications retrieved
+                data:
+                  - code: AMX_500
+                    name: Amoxicillin_500mg
+                    weight: 50
+                    imageUrl: null
+                    loadedAt: '2026-03-30T12:05:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}/battery:
+    get:
+      summary: Get drone battery level
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      responses:
+        '200':
+          description: Battery info
+          content:
+            application/json:
+              example:
+                message: Battery level retrieved
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  batteryCapacity: 95
+                  state: IDLE
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+    put:
+      summary: Update drone battery level
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batteryCapacity]
+              properties:
+                batteryCapacity:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  example: 85
+      responses:
+        '200':
+          description: Battery updated — returns changed fields only
+          content:
+            application/json:
+              example:
+                message: Battery level updated
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  batteryCapacity: 85
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}/audit-logs:
+    get:
+      summary: Battery audit logs for a specific drone (paginated)
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Paginated audit logs for this drone
+          content:
+            application/json:
+              example:
+                message: Audit logs retrieved
+                data:
+                  - id: 1
+                    droneId: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                    serialNumber: DRN-ALPHA-001
+                    batteryCapacity: 95
+                    state: IDLE
+                    createdAt: '2026-03-30T12:00:00.000Z'
+                meta:
+                  total: 144
+                  page: 1
+                  limit: 20
+                  totalPages: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}/load:
+    post:
+      summary: Load medications onto a drone
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      description: |
+        Loads medications atomically. On success the drone transitions to `LOADING`.
+
+        **Rules:**
+        - Drone must be in `IDLE` or `LOADING` state
+        - Battery must be ≥ 25%
+        - All codes must exist in the medication catalogue
+        - No code can appear twice on the same drone
+        - Total weight (existing + new) must not exceed `weightLimit`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicationCodes]
+              properties:
+                medicationCodes:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    pattern: '^[A-Z0-9_]+$'
+                  example: [AMX_500, PCM_250]
+      responses:
+        '200':
+          description: Medications loaded — drone is now in LOADING state
+          content:
+            application/json:
+              example:
+                message: Drone loaded successfully
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  state: LOADING
+                  medications:
+                    - code: AMX_500
+                      name: Amoxicillin_500mg
+                      weight: 50
+                      loadedAt: '2026-03-30T12:05:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Drone or medication codes not found
+          content:
+            application/json:
+              example:
+                message: 'Medications not found: GHOST_CODE'
+        '409':
+          description: Medication already loaded on drone
+          content:
+            application/json:
+              example:
+                message: 'Some medications are already loaded on this drone: AMX_500'
+        '422':
+          description: Business rule violation
+          content:
+            application/json:
+              examples:
+                lowBattery:
+                  summary: Battery too low
+                  value:
+                    message: Drone battery is at 20% — cannot load below 25%
+                wrongState:
+                  summary: Wrong state
+                  value:
+                    message: "Drone is currently in 'DELIVERING' state and cannot be loaded"
+                overweight:
+                  summary: Weight exceeded
+                  value:
+                    message: Total weight (520gr) exceeds drone weight limit (500gr)
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/drones/{droneId}/state:
+    patch:
+      summary: Update drone state
+      tags: [Drones]
+      security:
+        - ApiKeyAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/droneId'
+      description: |
+        Transitions the drone to a new state. Only valid transitions accepted.
+        Medications are automatically cleared on transition to `DELIVERED` or `IDLE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state:
+                  type: string
+                  enum: [IDLE, LOADING, LOADED, DELIVERING, DELIVERED, RETURNING]
+                  example: LOADED
+      responses:
+        '200':
+          description: State updated — returns changed fields only
+          content:
+            application/json:
+              example:
+                message: Drone state updated
+                data:
+                  id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+                  serialNumber: DRN-ALPHA-001
+                  state: LOADED
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/medications:
+    post:
+      summary: Create a medication
+      tags: [Medications]
+      security:
+        - ApiKeyAdmin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, weight, code]
+              properties:
+                name:
+                  type: string
+                  pattern: '^[a-zA-Z0-9\-_]+$'
+                  example: Amoxicillin_500mg
+                weight:
+                  type: number
+                  minimum: 0
+                  example: 50
+                code:
+                  type: string
+                  pattern: '^[A-Z0-9_]+$'
+                  example: AMX_500
+                imageUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+      responses:
+        '201':
+          description: Medication created
+          content:
+            application/json:
+              example:
+                message: Medication created successfully
+                data:
+                  code: AMX_500
+                  name: Amoxicillin_500mg
+                  weight: 50
+                  imageUrl: null
+                  createdAt: '2026-03-30T12:00:00.000Z'
+                  updatedAt: '2026-03-30T12:00:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Medication code already exists
+          content:
+            application/json:
+              example:
+                message: "Medication with code 'AMX_500' already exists"
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+    get:
+      summary: List all medications
+      tags: [Medications]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      responses:
+        '200':
+          description: All medications ordered by creation date descending
+          content:
+            application/json:
+              example:
+                message: Medications retrieved
+                data:
+                  - code: AMX_500
+                    name: Amoxicillin_500mg
+                    weight: 50
+                    imageUrl: null
+                    createdAt: '2026-03-30T12:00:00.000Z'
+                    updatedAt: '2026-03-30T12:00:00.000Z'
+                count: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/medications/{code}:
+    get:
+      summary: Get a medication by code
+      tags: [Medications]
+      security:
+        - ApiKeyAdmin: []
+        - ApiKeyReadonly: []
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z0-9_]+$'
+          example: AMX_500
+      responses:
+        '200':
+          description: Medication details
+          content:
+            application/json:
+              example:
+                message: Medication retrieved
+                data:
+                  code: AMX_500
+                  name: Amoxicillin_500mg
+                  weight: 50
+                  imageUrl: null
+                  createdAt: '2026-03-30T12:00:00.000Z'
+                  updatedAt: '2026-03-30T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/storage/upload-url:
+    post:
+      summary: Generate a pre-signed S3 upload URL
+      tags: [Storage]
+      security:
+        - ApiKeyAdmin: []
+      description: |
+        Returns a pre-signed `PUT` URL. The client uploads directly to S3 —
+        the API never receives the file bytes.
+
+        **Workflow:**
+        1. Call this endpoint → get `uploadUrl` and `imageUrl`
+        2. `PUT` the file directly to `uploadUrl` from the client
+        3. Pass `imageUrl` to `POST /api/medications`
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [medication]
+          example: medication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [extension, mimeType]
+              properties:
+                extension:
+                  type: string
+                  pattern: '^\.(jpeg|jpg|png|gif|webp)$'
+                  example: .jpg
+                mimeType:
+                  type: string
+                  pattern: '^image/(jpeg|png|gif|webp)$'
+                  example: image/jpeg
+      responses:
+        '200':
+          description: Pre-signed URL generated
+          content:
+            application/json:
+              example:
+                message: 'Pre-signed upload URL generated for type: medication'
+                data:
+                  uploadUrl: 'http://localhost:4566/drone-dispatch-uploads/medications/pending/uuid.jpg?X-Amz-Signature=...'
+                  imageUrl: 'http://localhost:4566/drone-dispatch-uploads/medications/pending/uuid.jpg'
+                  expiresIn: 300
+                  expiresAt: '2026-03-30T12:05:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
