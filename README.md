@@ -28,7 +28,7 @@ src/
     app.ts               # App extends AbstractApp — wires all dependencies
     route.manager.ts     # /api prefix applied once here
   config/
-    database.ts, redis.ts, rabbitmq.ts, swagger.ts
+    database.ts, redis.ts, rabbitmq.ts
   controllers/           # Arrow-property classes — no .bind() needed
   jobs/
     battery-audit.job.ts # node-cron: records battery levels every minute
@@ -231,8 +231,6 @@ npm run db:seed
 ```bash
 npm run dev
 ```
-
-The API will be available at `http://localhost:3000`. Swagger docs at `http://localhost:3000/api/docs`.
 
 ### Full Docker setup (app + infrastructure)
 
