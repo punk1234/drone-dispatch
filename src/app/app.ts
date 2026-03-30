@@ -4,6 +4,8 @@ import RouteManager from './route.manager';
 import { connectDatabase, disconnectDatabase, prisma } from '../config/database';
 import { connectRedis, disconnectRedis, getRedisClient } from '../config/redis';
 import { disconnectRabbit } from '../config/rabbitmq';
+import { startBatteryAuditJob } from '../jobs/battery-audit.job';
+import { startDroneEventConsumer } from '../workers/rabbitmq.consumer';
 import { logger } from '../utils/logger';
 import { AppError } from '../middlewares/error.middleware';
 
@@ -26,6 +28,10 @@ export default class App extends AbstractApp {
   protected async setupDependencies(): Promise<void> {
     await connectDatabase();
     await connectRedis();
+
+    // Non-fatal — RabbitMQ consumer and cron jobs log errors but don't crash startup
+    startBatteryAuditJob();
+    await startDroneEventConsumer();
   }
 
   /**
