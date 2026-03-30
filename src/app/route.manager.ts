@@ -1,6 +1,9 @@
 import { Application, RequestHandler, Router } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from '../config/swagger';
+import droneRoutes from '../routes/drone.route';
+import medicationRoutes from '../routes/medication.route';
+import storageRoutes from '../routes/storage.route';
 import { ApiResponseHandler } from '../utils/api-response.handler';
 
 /**
@@ -29,7 +32,12 @@ export default class RouteManager {
     );
     app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
+
     const apiRouter = Router();
+
+    apiRouter.use('/drones',      droneRoutes);
+    apiRouter.use('/medications', medicationRoutes);
+    apiRouter.use('/storage',     storageRoutes);
 
     app.use('/api', apiRouter);
   }

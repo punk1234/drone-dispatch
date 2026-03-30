@@ -29,8 +29,8 @@ jobs:
       - name: Lint (ESLint)
         run: npm run lint
 
-      - name: Type check (TypeScript)
-        run: yarn tsc --noEmit
+      # - name: Type check (TypeScript)
+      #   run: yarn tsc --noEmit
 
       - name: Run Tests
         run: yarn tsc --noEmit
